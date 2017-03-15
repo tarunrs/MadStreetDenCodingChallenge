@@ -13,14 +13,17 @@ from nltk.stem.snowball import SnowballStemmer
 import string
 import time
 from memory import asizeof
+import math 
+import json
+
 
 class IndexCache:
     ''' Structure to save index in cache and related functionality'''
     def __init__(self):
-        self._index_block_size = 10 * 1024 * 1024 #size of index block in memory
-        self._index_cache_size = 5   # Number of index blocks to cache
+        self._index_block_size = 100 * 1024 * 1024 #size of index block in memory
+        self._index_cache_size = 50   # Number of index blocks to cache
         self._index_cache_queue = [] # LRU queue
-        self._rebalance_every = 100  # Number of writes after which we try to rebalance a block
+        self._rebalance_every = 20000  # Number of writes after which we try to rebalance a block
         self._num_inserts = defaultdict(int) # To keep track of number of inserts in a block for the current shard
         self._current_index_block_num = 0
         self._current_shard = -1
@@ -38,7 +41,6 @@ class IndexCache:
         #self._populate_cache()
 
     def create_new_shard(self):
-        print "Creating new shard"
         self.flush()
         self._current_shard += 1
         path = os.path.join("index_data", str(self._current_shard))
@@ -57,7 +59,6 @@ class IndexCache:
                 continue
             self._load_block(shard, block)
             cache_key = str(shard) + "_" + str(block)
-            print cache_key, query
             results.update(self._index_cache[cache_key].get(query))
         return results
 
@@ -109,7 +110,6 @@ class IndexCache:
         overflow_records = []
         offset_block_size = curr_block_size - self._index_block_size
         deleted_members_size = 0
-        print cache_key, deleted_members_size, offset_block_size
         while deleted_members_size < offset_block_size:
             token, docs = self._index_cache[cache_key].popitem()
             deleted_members_size += asizeof(token)
@@ -120,7 +120,6 @@ class IndexCache:
                 el["key"] = doc
                 el["pos"] = docs[doc]
                 overflow_records.append(el)
-        print cache_key, deleted_members_size, offset_block_size
         block_num = int(cache_key.split("_")[1])
         if block_num == self._current_index_block_num:
             self._current_index_block_num += 1
@@ -147,12 +146,10 @@ class IndexCache:
 
     def _evict_block(self):
         if len(self._index_cache_queue) < self._index_cache_size:
-            print "Cache not full"
             #Cache not full. No need to evict LRU block
             return
         lru_key = self._index_cache_queue[-1]
         lru_shard, lru_block = lru_key.split("_")
-        print "Evicting:", lru_shard, ",", lru_block
         if int(lru_shard) == self._current_shard and self._num_inserts[int(lru_block)] > 0:
             #Cache block is dirty. Save to disk
             self._flush_block(lru_shard, lru_block)
@@ -181,7 +178,7 @@ class InvertedIndex:
         self._index_cache = IndexCache()
         self._stop_words = set(stopwords.words('english'))
         self._stemmer = SnowballStemmer("english")
-        self._max_documents_per_shard = 1000
+        self._max_documents_per_shard = 50000
         self._num_documents_in_current_shard = 0 
         if os.path.isfile("index_data/index.meta"):
             self._num_documents_in_current_shard = pickle.load(open("index_data/index.meta"))
@@ -218,7 +215,10 @@ class InvertedIndex:
         sorted_results = []
         for key, _ in sorted_result_counts:
             sorted_results.append( { "key": key, "positions" :  ret_results[key]})
-        ret = {"status": True, "results": sorted_results}
+        if len(sorted_results)> 0:
+          ret = {"status": True, "results": sorted_results}
+        else:
+          ret = {"status": False, "message": "No hits"}
         return ret
 
     def _search_keyword(self, query):
@@ -272,31 +272,42 @@ class EnronInvertedIndex(InvertedIndex):
                     start_time = time.time()
                     self.add(file_path, text)
                     end_time = time.time()
-                    print i, end_time - start_time
 
 
-    def search_results(self, query, highlight_length=20):
+    def search_results(self, query, page=1, page_size=10, highlight_length=40):
+        ret = dict()
+        start_time = time.time()
         results = self.search(query)
+        end_time = time.time()
         if not results["status"]:
-            print results["message"]
             return results
-        for result in results["results"]:
+        num_results = len(results["results"])
+        start_index = (page - 1) * page_size
+        end_index = page * page_size
+        if start_index >= num_results:
+            ret = {"status": False, "message": "No more results"}
+        if end_index > num_results:
+            end_index = num_results
+        total_pages = int(math.ceil(num_results / float(page_size)))
+        ret["status"] = results["status"]
+        ret["total_count"] = num_results
+        ret["total_pages"] = total_pages
+        ret["current_page"] = page
+        ret["start_index"] = start_index + 1
+        ret["end_index"] = end_index
+        ret["time_taken"] = end_time - start_time
+        ret["results"] = []
+        for result in results["results"][start_index:end_index]:
             with(open(result["key"])) as f:
+                ret_el = dict()
                 email = self.email_parser.parsestr(f.read())
                 text = email.get_payload()
+                ret_el["key"] = result["key"]
+                ret_el["snippets"] = []
                 for position in result["positions"]:
                     start_pos = position[0] - highlight_length if position[0] - highlight_length >= 0 else 0              
                     end_pos = position[0] + highlight_length if position[0] + highlight_length <= len(text) else len(text)
-                    print result["key"], text[start_pos: end_pos].replace("\n", "").replace("\r", "")
-
-if __name__ == '__main__':
-    start_time = time.time()
-    index = EnronInvertedIndex()
-    end_time = time.time()
-    print "Load time:", end_time - start_time
-    start_time = time.time()
-    #index.add_files("test_data")
-    #index.save()
-    index.search_results(sys.argv[1:])
-    end_time = time.time()
-    print "Index time:", end_time - start_time
+                    ret_el["snippets"] .append(text[start_pos : end_pos])
+                ret["results"].append(ret_el)
+        return ret
+                    

@@ -1,0 +1,42 @@
+<!doctype html>
+<html>
+   <body>
+   
+      <h1>Mad Street Den - Coding Challenge</h1>
+      <form action="/" method="GET">
+        <input type="text" name="query"></input>
+        <input type="submit" name="Submit"></input>
+      </form>
+      {% if results %}
+        {% if results["status"] %}
+          Total Hits: {{ results["total_count"]}} </br>
+          Time taken: {{results["time_taken"] }}</br>
+          Displaying page {{results["current_page"]}} of {{results["total_pages"]}}</br>
+          Displaying documents {{results["start_index"]}} to {{results["end_index"]}} </br>
+          <table cellpadding="10">
+                
+              {% for result in results["results"]%}
+                <tr>
+                   <td > {{ result["key"] }} </td>
+                   <td> 
+                      {% for snippet in result["snippets"] %}
+                        {{ snippet }} </br>
+                      {% endfor %}
+                   </td>
+                </tr>
+              {% endfor %}
+          </table>   
+          <br>
+          {% if results["current_page"] != 1 %}
+            <a href='/?query={{query}}&page={{ results["current_page"] - 1}}'>Prev </a>
+          {% endif %} 
+          {% if results["current_page"]< results["total_pages"] %}
+            <a href='/?query={{query}}&page={{ results["current_page"] + 1}}'>Next </a>
+          {% endif %}
+        {% else %}
+          {{ results["message"] }}
+        {% endif %}
+      {% endif %}
+      
+   </body>
+</html>
