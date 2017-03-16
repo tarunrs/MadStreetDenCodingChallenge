@@ -17,7 +17,7 @@
                 
               {% for result in results["results"]%}
                 <tr>
-                   <td > {{ result["key"] }} </td>
+                   <td > <a href='/view_file?file={{ result["key"] }}'> {{ result["key"] }} </a> </td>
                    <td> 
                       {% for snippet in result["snippets"] %}
                         {{ snippet }} </br>

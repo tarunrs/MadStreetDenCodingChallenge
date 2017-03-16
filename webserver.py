@@ -18,6 +18,13 @@ def home():
         return render_template('index.html', results=results, query=query)
     else:
         return render_template('index.html')
+
+@app.route("/view_file")
+def view_file():
+    file_path = request.args.get("file")
+    text = open(file_path).read()
+    return render_template('view_file.html', text=text)
+
 if __name__ == "__main__":
   app.run(host="0.0.0.0")
 
