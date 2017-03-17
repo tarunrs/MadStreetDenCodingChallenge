@@ -19,7 +19,7 @@ Steps to run:
 
 - Point your web browser to http://localhost:5000
 
-- Perform a search in the format <OP> <keyword1> <OP> <keyword2> ... <OP> <keywordN> where OP is 'AND' or 'OR'
+- Perform a search in the format OP keyword1 OP keyword2 ... OP keywordN where OP is 'AND' or 'OR'
   Example:
   1) AND byzantine
   2) OR enron OR employess OR meeting
@@ -52,10 +52,10 @@ Tests were run on a machine with 7Gb of memory. Max RAM utilization was at 80% w
 - Time taken to index all the documents in the dataset(~520,000): 7.75 Hrs
 - Time taken to create a new shard 90 - 240 seconds (This can be brought down to consistently at 90 seconds by flushing only the current shards index blocks to disk, since only the current shard can have writes)
 - Time taken to index a document:
-  max = 271.060 seconds (While creating a new shard. This can be brought down to ~90 seconds if we only flush the dirty index blocks)  
-  min = 0.0 seconds (Possible when the document was empty)
-  mean = 0.054 seconds
-  median = 0.002 seconds
+ -- max = 271.060 seconds (While creating a new shard. This can be brought down to ~90 seconds if we only flush the dirty index blocks)  
+ -- min = 0.0 seconds (Possible when the document was empty)
+ -- mean = 0.054 seconds
+ -- median = 0.002 seconds
 - Time to load an index block to memory 2-3 seconds
 
 Performance enhancements and scaling:
